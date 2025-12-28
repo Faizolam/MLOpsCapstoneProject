@@ -1,4 +1,4 @@
 [core]
-    remote = mylocal
-['remote "mylocal"']
-    url = ../local_s3
+    remote = myremote
+['remote "myremote"']
+    url = gs://dvc-mlops-bucket/dvc-track
