@@ -14,9 +14,9 @@ from src.logger import logging
 # Below code block is for production use
 # -------------------------------------------------------------------------------------
 # Set up DagsHub credentials for MLflow tracking
-dagshub_token = os.getenv("MLOPS_CAPS_PROJ_DAGS_TOKEN")
+dagshub_token = os.getenv("CAPSTONE_TEST")
 if not dagshub_token:
-    raise EnvironmentError("MLOPS_CAPS_PROJ_DAGS_TOKEN environment variable is not set")
+    raise EnvironmentError("CAPSTONE_TEST environment variable is not set")
 
 os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
 os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
