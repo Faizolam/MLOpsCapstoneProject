@@ -13,27 +13,27 @@ from src.logger import logging
 
 # Below code block is for production use
 # -------------------------------------------------------------------------------------
-# # Set up DagsHub credentials for MLflow tracking
-# dagshub_token = os.getenv("CAPSTONE_TEST")
-# if not dagshub_token:
-#     raise EnvironmentError("CAPSTONE_TEST environment variable is not set")
+# Set up DagsHub credentials for MLflow tracking
+dagshub_token = os.getenv("MLOPS_CAPS_PROJ_DAGS_TOKEN")
+if not dagshub_token:
+    raise EnvironmentError("MLOPS_CAPS_PROJ_DAGS_TOKEN environment variable is not set")
 
-# os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
-# os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
-# dagshub_url = "https://dagshub.com"
-# repo_owner = "vikashdas770"
-# repo_name = "YT-Capstone-Project"
+dagshub_url = "https://dagshub.com"
+repo_owner = "Faizolam"
+repo_name = "MLOpsCapstoneProject"
 
-# # Set up MLflow tracking URI
-# mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
+# Set up MLflow tracking URI
+mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
 # -------------------------------------------------------------------------------------
 
-# Below code block is for local use
-# -------------------------------------------------------------------------------------
-mlflow.set_tracking_uri('https://dagshub.com/Faizolam/MLOpsCapstoneProject.mlflow')
-dagshub.init(repo_owner='Faizolam', repo_name='MLOpsCapstoneProject', mlflow=True)
-# -------------------------------------------------------------------------------------
+# # Below code block is for local use
+# # -------------------------------------------------------------------------------------
+# mlflow.set_tracking_uri('https://dagshub.com/Faizolam/MLOpsCapstoneProject.mlflow')
+# dagshub.init(repo_owner='Faizolam', repo_name='MLOpsCapstoneProject', mlflow=True)
+# # -------------------------------------------------------------------------------------
 
 
 def load_model(file_path: str):
