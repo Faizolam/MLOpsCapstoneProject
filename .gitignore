@@ -213,5 +213,5 @@ local_s3/
 
 
 # just for during dev
-module/
-data/
+models/
+# data/
