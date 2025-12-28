@@ -210,5 +210,8 @@ __marimo__/
 notes.txt
 notebooks/
 local_s3/
+
+
+# just for during dev
 module/
 data/
