@@ -2,33 +2,45 @@ name: CI Pipeline
 
 on: push
 
+# jobs:
+#   project-testing:
+#     runs-on: ubuntu-latest
+
+# name: CI Pipeline
+
+# on: 
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
+
 jobs:
   project-testing:
     runs-on: ubuntu-latest
 
     steps:
-      - name: checkout code
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: setup python
-        uses: actions/setup-python@v2
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       #Instead of installing all dependencies multiple time due to multiple run, to avoid this we take dependencies from cache and speed up execution after 1-2 execution.
       - name: Cache pip dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: install dependencies
+      - name: Install dependencies
         run: |
           pip install -r requirements.txt
 
-      - name: run pipeline
+      - name: Run pipeline
         env:
           CAPSTONE_TEST: ${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }}
         run: |
@@ -39,6 +51,12 @@ jobs:
           CAPSTONE_TEST: ${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }}
         run: |
           python -m unittest tests/test_model.py
+      
+      - name: Run Flask app tests # Moved UP before promotion
+        if: success()
+        env:
+          CAPSTONE_TEST: ${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }}
+        run: python -m unittest tests/test_flask_app.py
 
       - name: Promote model to production
         if: success()
@@ -46,8 +64,135 @@ jobs:
           CAPSTONE_TEST: ${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }}
         run: python scripts/promote_model.py
 
-      - name: Run Flask app tests
-        if: success()
+      ## GCP + Docker (only on main branch)
+      - name: Authenticate to Google Cloud
+        if: success() && github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          # All values from secrets
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          REPO="${{ secrets.GCP_ARTIFACT_REPO }}"
+          REGION="${{ secrets.GCP_REGION }}"
+          IMAGE_NAME="${{ secrets.DOCKER_IMAGE_NAME }}"
+          TAG="${GITHUB_SHA::7}"
+          LATEST_TAG="latest"
+          
+          FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE_NAME}"
+          
+          # Build and push both tags
+          # SINGLE BUILD with multiple tags
+          docker build -t "${FULL_IMAGE}:${TAG}" \
+                        -t "${FULL_IMAGE}:${LATEST_TAG}" .
+          
+          docker push "${FULL_IMAGE}:${TAG}"
+          docker push "${FULL_IMAGE}:${LATEST_TAG}"
         env:
-          CAPSTONE_TEST: ${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }}
-        run: python -m unittest tests/test_flask_app.py      
+          DOCKER_BUILDKIT: 1
+
+      
+# -------------------------------------------------------------------------
+
+# jobs:
+#   project-testing:
+#     runs-on: ubuntu-latest
+#     env:  # Move common env here
+#       CAPSTONE_TEST: ${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Setup Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.10'
+
+#       - name: Cache pip dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: ~/.cache/pip
+#           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+#           restore-keys: |  # Fixed indent
+#             ${{ runner.os }}-pip-
+
+#       - name: Install dependencies
+#         run: pip install -r requirements.txt
+
+#       - name: Run pipeline
+#         run: dvc repro
+
+#       - name: Run model tests
+#         run: python -m unittest tests/test_model.py
+
+#       - name: Run Flask app tests  # Moved UP before promotion
+#         run: python -m unittest tests/test_flask_app.py
+
+#       - name: Promote model to production
+#         if: success()
+#         run: python scripts/promote_model.py
+
+#       # GCP + Docker (ONLY on main branch)
+#       - name: Authenticate to Google Cloud
+#         if: success() && github.ref == 'refs/heads/main'
+#         uses: google-github-actions/auth@v2
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+#       - name: Configure Docker for Artifact Registry
+#         if: success() && github.ref == 'refs/heads/main'
+#         run: |
+#           gcloud auth configure-docker us-docker.pkg.dev --quiet  # Fixed for multi-region
+
+#       - name: Build and push Docker image
+#         if: success() && github.ref == 'refs/heads/main'
+#         run: |
+#           PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+#           REPO="${{ secrets.GCP_ARTIFACT_REPO }}"
+#           REGION="us"  # Multi-region US
+#           IMAGE_NAME="${{ secrets.DOCKER_IMAGE_NAME }}"
+#           TAG="${GITHUB_SHA::7}"
+#           LATEST_TAG="latest"
+          
+#           FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE_NAME}"
+          
+#           # SINGLE BUILD with multiple tags
+#           docker build -t "${FULL_IMAGE}:${TAG}" \
+#                         -t "${FULL_IMAGE}:${LATEST_TAG}" .
+          
+#           docker push "${FULL_IMAGE}:${TAG}"
+#           docker push "${FULL_IMAGE}:${LATEST_TAG}"
+#         env:
+#           DOCKER_BUILDKIT: 1
+      
+#             # GKE Deployment (only on main)
+#       - name: Authenticate to GKE
+#         if: success() && github.ref == 'refs/heads/main'
+#         uses: google-github-actions/auth@v2
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+#       - name: Get GKE credentials
+#         if: success() && github.ref == 'refs/heads/main'
+#         run: gcloud container clusters get-credentials your-cluster-name --zone us-central1-a --project ${{ secrets.GCP_PROJECT_ID }}
+
+#       - name: Create Kubernetes Secret
+#         if: success() && github.ref == 'refs/heads/main'
+#         run: |
+#           kubectl create secret generic capstone-secret \
+#             --from-literal=CAPSTONE_TEST=${{ secrets.MLOPS_CAPS_PROJ_DAGS_TOKEN }} \
+#             --dry-run=client -o yaml | kubectl apply -f -
+
+#       - name: Deploy to GKE
+#         if: success() && github.ref == 'refs/heads/main'
+#         run: kubectl apply -f deployment.yaml
+
