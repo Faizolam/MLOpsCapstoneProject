@@ -14,6 +14,10 @@ on: push
 #   pull_request:
 #     branches: [ main ]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   project-testing:
     runs-on: ubuntu-latest
@@ -66,17 +70,25 @@ jobs:
 
       ## GCP + Docker (only on main branch)
       - name: Authenticate to Google Cloud
+        id: auth
         if: success() && github.ref == 'refs/heads/main'
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          token_format: 'access_token'
+          workload_identity_provider: 'projects/177124743636/locations/global/workloadIdentityPools/github-pool/providers/github-provider-v2'
+          service_account: 'mlops-930@mlops-499614.iam.gserviceaccount.com'
+          
+      - name: Set up Cloud SDK
+        if: success() && github.ref == 'refs/heads/main'
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Artifact Registry
         if: success() && github.ref == 'refs/heads/main'
         run: |
           gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Build and push Docker image
+          
+      - name: Build and Push Docker image
         if: success() && github.ref == 'refs/heads/main'
         run: |
           # All values from secrets
@@ -89,7 +101,7 @@ jobs:
           
           FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE_NAME}"
           
-          # Build and push both tags
+          # Build and Push both tags
           # SINGLE BUILD with multiple tags
           docker build -t "${FULL_IMAGE}:${TAG}" \
                         -t "${FULL_IMAGE}:${LATEST_TAG}" .
