@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capstone-app
+  labels:
+    app: capstone-app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: capstone-app
+
+  template:
+    metadata:
+      labels:
+        app: capstone-app
+
+    spec:
+      containers:
+        - name: capstone-app
+
+          image: asia-south2-docker.pkg.dev/mlops-499614/mlops-repo/capstone-app:latest
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 5000
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1"
+
+          env:
+            - name: CAPSTONE_TEST
+              valueFrom:
+                secretKeyRef:
+                  name: capstone-secret
+                  key: CAPSTONE_TEST
