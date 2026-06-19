@@ -81,6 +81,9 @@ jobs:
       - name: Set up Cloud SDK
         if: success() && github.ref == 'refs/heads/main'
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          # install_components: 'gke-gcloud-auth-plugin' # No longer needed as it's included in the Cloud SDK now 
 
       - name: Configure Docker for Artifact Registry
         if: success() && github.ref == 'refs/heads/main'
@@ -112,10 +115,25 @@ jobs:
           DOCKER_BUILDKIT: 1
 
       # GKE Deployment (only on main)
+      # Note: The GKE auth plugin is now included in the Cloud SDK, so we can skip the separate installation step.
+      # - name: Install GKE auth plugin
+      #   run: |
+      #     gcloud components install gke-gcloud-auth-plugin --quiet
 
+      # The gcloud command to get GKE credentials is now replaced with the google-github-actions/get-gke-credentials action, which simplifies the process and handles authentication seamlessly.
+      # - name: Get GKE credentials
+      # if: success() && github.ref == 'refs/heads/main'
+      # run: gcloud container clusters get-credentials mlops-cluster \
+      #   --region ${{ secrets.GCP_REGION }} \
+      #   --project ${{ secrets.GCP_PROJECT_ID }}
+      
       - name: Get GKE credentials
         if: success() && github.ref == 'refs/heads/main'
-        run: gcloud container clusters get-credentials mlops-cluster --region ${{ secrets.GCP_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: mlops-cluster
+          location: ${{ secrets.GCP_REGION }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Create Kubernetes Secret
         if: success() && github.ref == 'refs/heads/main'
