@@ -143,27 +143,34 @@ def home():
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    REQUEST_COUNT.labels(method="POST", endpoint="/predict").inc()
-    start_time = time.time()
+    try:
+        print("========== PREDICT REQUEST RECEIVED ==========", flush=True)
+        REQUEST_COUNT.labels(method="POST", endpoint="/predict").inc()
+        start_time = time.time()
 
-    text = request.form["text"]
-    # Clean text
-    text = normalize_text(text)
-    # Convert to features(transforming text ot vector and making it in numerical features so that model can understandd.)
-    features = vectorizer.transform([text])
-    features_df = pd.DataFrame(features.toarray(), columns=[str(i) for i in range(features.shape[1])]) # and all features are convert into dataframe, now in this features_df dataframe has those 30-50 columns which were we got after implemention or apply of vectorizer.
+        text = request.form["text"]
+        # Clean text
+        text = normalize_text(text)
+        # Convert to features(transforming text ot vector and making it in numerical features so that model can understandd.)
+        features = vectorizer.transform([text])
+        features_df = pd.DataFrame(features.toarray(), columns=[str(i) for i in range(features.shape[1])]) # and all features are convert into dataframe, now in this features_df dataframe has those 30-50 columns which were we got after implemention or apply of vectorizer.
 
-    # Predict
-    result = model.predict(features_df)
-    prediction = result[0]
+        # Predict
+        result = model.predict(features_df)
+        prediction = result[0]
 
-    # Increment prediction count metric
-    PREDICTION_COUNT.labels(prediction=str(prediction)).inc()
+        # Increment prediction count metric
+        PREDICTION_COUNT.labels(prediction=str(prediction)).inc()
 
-    # Measure latency
-    REQUEST_LATENCY.labels(endpoint="/predict").observe(time.time() - start_time)
+        # Measure latency
+        REQUEST_LATENCY.labels(endpoint="/predict").observe(time.time() - start_time)
 
-    return render_template("index.html", result=prediction)
+        return render_template("index.html", result=prediction)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise
+        # return str(e), 500
 
 @app.route("/metrics", methods=["GET"])
 def metrics():
@@ -172,4 +179,4 @@ def metrics():
 
 if __name__ == "__main__":
     # app.run(debug=True) # for local use
-    app.run(debug=True, host="0.0.0.0", port=5000)  # Accessible from outside Docker
+    app.run(host="0.0.0.0", port=5000)  # Accessible from outside Docker
