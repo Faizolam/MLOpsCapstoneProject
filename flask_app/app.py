@@ -10,6 +10,7 @@ from nltk.corpus import stopwords
 import string
 import re
 import dagshub
+from pathlib import Path
 
 import warnings
 warnings.simplefilter("ignore", UserWarning)
@@ -43,7 +44,7 @@ def removing_punctuations(text):
     """Remove punctuations from the text."""
     text = re.sub('[%s]' % re.escape(string.punctuation), ' ', text)
     text = text.replace('؛', "")
-    text = re.sub('\s+', ' ', text).strip()
+    text = re.sub(r'\s+', ' ', text).strip()
     return text
 
 def removing_urls(text):
@@ -90,7 +91,6 @@ repo_name = "MLOpsCapstoneProject"
 mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
 # -------------------------------------------------------------------------------------
 
-
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -112,25 +112,46 @@ PREDICTION_COUNT = Counter(
 
 # ------------------------------------------------------------------------------------------
 # Model and vectorizer setup(original logic)
+BASE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = BASE_DIR.parent
+
 model_name = "my_model"
+
 def get_latest_model_version(model_name):
-    """
-    make connection mlflow and get latest model
-    Docstring for get_latest_model_version
-    
-    :param model_name: Description
-    """
+    """Make a connection to MLflow and return the latest model version."""
     client = mlflow.MlflowClient()
-    latest_version = client.get_latest_versions(model_name)
-    if not latest_version:
-        latest_version = client.get_latest_versions(model_name, stages=["None"])
-    return latest_version[0].version if latest_version else None
+    latest_versions = client.get_latest_versions(model_name)
+    if not latest_versions:
+        latest_versions = client.get_latest_versions(model_name, stages=["None"])
+    if not latest_versions:
+        return None
+
+    production_versions = [v for v in latest_versions if v.current_stage.lower() == "production"]
+    print(production_versions)
+    chosen_list = production_versions if production_versions else latest_versions
+    print(chosen_list)
+    latest_version = max(chosen_list, key=lambda v: int(v.version))
+    return latest_version.version
+
+
+def resolve_repo_path(*parts):
+    return REPO_ROOT.joinpath(*parts)
 
 model_version = get_latest_model_version(model_name)
+if model_version is None:
+    raise RuntimeError(f"No model versions found for '{model_name}'.")
+
 model_uri = f'models:/{model_name}/{model_version}'
 print(f"Fetching model from: {model_uri}")
 model = mlflow.pyfunc.load_model(model_uri)
-vectorizer = pickle.load(open('models/vectorizer.pkl', 'rb'))
+
+vectorizer_path = resolve_repo_path('models', 'vectorizer.pkl')
+print(f"Loading vectorizer from: {vectorizer_path}")
+if not vectorizer_path.exists():
+    raise FileNotFoundError(f"Vectorizer file not found at {vectorizer_path}")
+
+with open(vectorizer_path, 'rb') as f:
+    vectorizer = pickle.load(f)
 
 # Routes
 @app.route("/")
