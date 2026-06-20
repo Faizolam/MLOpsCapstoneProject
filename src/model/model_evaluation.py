@@ -110,8 +110,8 @@ def save_model_info(run_id: str, model_path: str, file_path: str, metadata: dict
                 model_info['description'] = metadata['description']
             if 'tags' in metadata:
                 model_info['tags'] = metadata['tags']
-            if 'alias' in metadata:
-                model_info['alias'] = metadata['alias']
+            if 'aliases' in metadata:
+                model_info['aliases'] = metadata['aliases']
         
         with open(file_path, 'w') as file:
             json.dump(model_info, file, indent=4)
