@@ -14,20 +14,23 @@ from src.logger import logging
 
 # Below code block is for production use
 # -------------------------------------------------------------------------------------
-# Set up DagsHub credentials for MLflow tracking
+# Set up DagsHub credentials for MLflow tracking if available; otherwise fall back to local mlruns
 dagshub_token = os.getenv("CAPSTONE_TEST")
-if not dagshub_token:
-    raise EnvironmentError("CAPSTONE_TEST environment variable is not set")
-
-os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
-os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
-
-dagshub_url = "https://dagshub.com"
-repo_owner = "Faizolam"
-repo_name = "MLOpsCapstoneProject"
-
-# Set up MLflow tracking URI
-mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
+if dagshub_token:
+    os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+    os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+    dagshub_url = "https://dagshub.com"
+    repo_owner = "Faizolam"
+    repo_name = "MLOpsCapstoneProject"
+    # Set up MLflow tracking URI (remote)
+    mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
+    logging.info('Using remote MLflow tracking: %s/%s/%s.mlflow', dagshub_url, repo_owner, repo_name)
+else:
+    # Fallback to local mlruns so CI and local runs without secrets still work
+    logging.warning('CAPSTONE_TEST not set — falling back to local mlruns for MLflow tracking')
+    local_mlruns = os.path.abspath(os.path.join(os.getcwd(), 'mlruns'))
+    os.makedirs(local_mlruns, exist_ok=True)
+    mlflow.set_tracking_uri(f'file://{local_mlruns}')
 # -------------------------------------------------------------------------------------
 
 # # Below code block is for local use
