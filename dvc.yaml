@@ -42,6 +42,8 @@ stages:
     deps:
     - models/model.pkl
     - src/model/model_evaluation.py
+    params:
+    - model_metadata
     metrics:
     - reports/metrics.json
     outs:

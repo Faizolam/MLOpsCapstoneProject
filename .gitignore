@@ -215,3 +215,5 @@ local_s3/
 # just for during dev
 models/
 data/
+flask_app/check_model_versions.py
+flask_app/test_predict_logic.py

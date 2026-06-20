@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import json
+import yaml
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 import logging
 import mlflow
@@ -96,10 +97,22 @@ def save_metrics(metrics: dict, file_path: str) -> None:
         logging.error('Error occurred while saving the metrics: %s', e)
         raise
 
-def save_model_info(run_id: str, model_path: str, file_path: str) -> None:
-    """Save the model run ID and path to a JSON file."""
+def save_model_info(run_id: str, model_path: str, file_path: str, metadata: dict = None) -> None:
+    """Save the model run ID, path, and optional metadata to a JSON file."""
     try:
-        model_info = {'run_id': run_id, 'model_path': model_path}
+        model_info = {
+            'run_id': run_id, 
+            'model_path': model_path
+        }
+        # Add optional metadata fields if provided
+        if metadata:
+            if 'description' in metadata:
+                model_info['description'] = metadata['description']
+            if 'tags' in metadata:
+                model_info['tags'] = metadata['tags']
+            if 'alias' in metadata:
+                model_info['alias'] = metadata['alias']
+        
         with open(file_path, 'w') as file:
             json.dump(model_info, file, indent=4)
         logging.debug('Model info saved to %s', file_path)
@@ -111,6 +124,16 @@ def main():
     mlflow.set_experiment("my-dvc-pipeline")
     with mlflow.start_run() as run:  # Start an MLflow run
         try:
+            # Load metadata from params.yaml
+            metadata = None
+            try:
+                with open('params.yaml', 'r') as f:
+                    params = yaml.safe_load(f)
+                    metadata = params.get('model_metadata', {})
+                    logging.debug('Loaded metadata from params.yaml: %s', metadata)
+            except Exception as e:
+                logging.warning('Could not load metadata from params.yaml: %s', e)
+            
             clf = load_model('./models/model.pkl')
             test_data = load_data('./data/processed/test_bow.csv')
             
@@ -127,15 +150,15 @@ def main():
             
             # Log model parameters to MLflow
             if hasattr(clf, 'get_params'):
-                params = clf.get_params()
-                for param_name, param_value in params.items():
+                params_dict = clf.get_params()
+                for param_name, param_value in params_dict.items():
                     mlflow.log_param(param_name, param_value)
             
             # Log model to MLflow
             mlflow.sklearn.log_model(clf, "model")
             
-            # Save model info
-            save_model_info(run.info.run_id, "model", 'reports/experiment_info.json')
+            # Save model info with metadata
+            save_model_info(run.info.run_id, "model", 'reports/experiment_info.json', metadata)
             
             # Log the metrics file to MLflow
             mlflow.log_artifact('reports/metrics.json')

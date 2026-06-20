@@ -120,18 +120,22 @@ model_name = "my_model"
 def get_latest_model_version(model_name):
     """Make a connection to MLflow and return the latest model version."""
     client = mlflow.MlflowClient()
-    latest_versions = client.get_latest_versions(model_name)
-    if not latest_versions:
-        latest_versions = client.get_latest_versions(model_name, stages=["None"])
-    if not latest_versions:
+    # Use search_model_versions to retrieve all versions; fall back to get_latest_versions for older MLflow
+    try:
+        versions = list(client.search_model_versions(f"name='{model_name}'"))
+    except Exception:
+        versions = client.get_latest_versions(model_name) or client.get_latest_versions(model_name, stages=["None"]) or []
+
+    if not versions:
         return None
 
-    production_versions = [v for v in latest_versions if v.current_stage.lower() == "production"]
-    print(production_versions)
-    chosen_list = production_versions if production_versions else latest_versions
-    print(chosen_list)
-    latest_version = max(chosen_list, key=lambda v: int(v.version))
-    return latest_version.version
+    def stage_of(v):
+        return (getattr(v, 'current_stage', '') or '').lower()
+
+    # Select the highest numeric version by default (most recent registration)
+    latest = max(versions, key=lambda v: int(v.version))
+    print(f"get_latest_model_version: selected version {latest.version} (stage={(getattr(latest,'current_stage','') or '')})")
+    return latest.version
 
 
 def resolve_repo_path(*parts):
@@ -164,21 +168,30 @@ def home():
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    try:
-        print("========== PREDICT REQUEST RECEIVED ==========", flush=True)
-        REQUEST_COUNT.labels(method="POST", endpoint="/predict").inc()
-        start_time = time.time()
+    print("========== PREDICT REQUEST RECEIVED ==========", flush=True)
+    REQUEST_COUNT.labels(method="POST", endpoint="/predict").inc()
+    start_time = time.time()
 
-        text = request.form["text"]
+    try:
+        text = request.form.get("text", "")
+        print(f"Received text: {text[:100]}", flush=True)
+        
         # Clean text
         text = normalize_text(text)
+        print(f"Normalized text: {text[:100]}", flush=True)
         # Convert to features(transforming text ot vector and making it in numerical features so that model can understandd.)
         features = vectorizer.transform([text])
-        features_df = pd.DataFrame(features.toarray(), columns=[str(i) for i in range(features.shape[1])]) # and all features are convert into dataframe, now in this features_df dataframe has those 30-50 columns which were we got after implemention or apply of vectorizer.
+        print(f"Features shape: {features.shape}", flush=True)
+        
+        features_df = pd.DataFrame(features.toarray(), columns=[str(i) for i in range(features.shape[1])])
+        print(f"Features DataFrame shape: {features_df.shape}", flush=True)
 
         # Predict
         result = model.predict(features_df)
+        print(f"Model result type: {type(result)}, value: {result}", flush=True)
+        
         prediction = result[0]
+        print(f"Prediction: {prediction}", flush=True)
 
         # Increment prediction count metric
         PREDICTION_COUNT.labels(prediction=str(prediction)).inc()
@@ -188,10 +201,10 @@ def predict():
 
         return render_template("index.html", result=prediction)
     except Exception as e:
+        print(f"ERROR in predict: {str(e)}", flush=True)
         import traceback
         traceback.print_exc()
-        raise
-        # return str(e), 500
+        return f"Error: {str(e)}", 500
 
 @app.route("/metrics", methods=["GET"])
 def metrics():

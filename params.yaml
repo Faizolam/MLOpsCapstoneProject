@@ -4,3 +4,11 @@ data_ingestion:
 
 feature_engineering:
   max_features: 100
+
+model_metadata:
+  description: "Sentiment analysis model - Logistic Regression with CountVectorizer BOW features"
+  tags:
+    model_type: "LogisticRegression"
+    feature_type: "BOW"
+    dataset: "IMDB"
+  aliases: "latest"
